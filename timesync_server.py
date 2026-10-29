@@ -1,43 +1,42 @@
-#!/usr/bin/env python3
-"""UDP time server (NTP-like). Replies with T2 (receive) and T3 (transmit) timestamps."""
-import argparse, socket, struct, threading, time
-from collections import defaultdict
+import socket
+import time
+import struct
 
-FMT = '!BIddd'          # type, seq, t1, t2, t3  (29 bytes)
-REQ, RESP = 1, 2
+SERVER_HOST = '0.0.0.0'  # Listens on all interfaces in h1's namespace
+SERVER_PORT = 12345
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--bind', default='0.0.0.0')
-    ap.add_argument('--port', type=int, default=5005)
-    ap.add_argument('--proc-delay-ms', type=float, default=0.0, help='emulate server load')
-    a = ap.parse_args()
-
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((a.bind, a.port))
-    counts = defaultdict(int)
+    
+    # Allow quick address/port reuse in network namespaces
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    
+    sock.bind((SERVER_HOST, SERVER_PORT))
+    print(f"[*] Time Server listening on UDP port {SERVER_PORT}...")
 
-    def report():
-        while True:
-            time.sleep(5)
-            print(f'[server] requests served: {dict(counts)}', flush=True)
-    threading.Thread(target=report, daemon=True).start()
-
-    print(f'[server] listening on {a.bind}:{a.port}', flush=True)
     while True:
-        data, addr = sock.recvfrom(1024)
-        t2 = time.time()                       # receive timestamp
         try:
-            typ, seq, t1, _, _ = struct.unpack(FMT, data)
-        except struct.error:
-            continue                           # ignore malformed packets
-        if typ != REQ:
-            continue
-        if a.proc_delay_ms:
-            time.sleep(a.proc_delay_ms / 1000)
-        t3 = time.time()                       # transmit timestamp
-        sock.sendto(struct.pack(FMT, RESP, seq, t1, t2, t3), addr)
-        counts[addr[0]] += 1
+            data, addr = sock.recvfrom(1024)
+            t2 = time.time()  # T2: Server Receive Time
+            
+            if len(data) < 8:
+                continue
+            
+            # Unpack T1 from client payload
+            t1 = struct.unpack('!d', data[:8])[0]
+            
+            t3 = time.time()  # T3: Server Transmit Time
+            
+            # Send back T1, T2, T3
+            response = struct.pack('!ddd', t1, t2, t3)
+            sock.sendto(response, addr)
+            print(f"[+] Responded to {addr}")
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            print(f"[!] Error: {e}")
 
-if __name__ == '__main__':
+    sock.close()
+
+if __name__ == "__main__":
     main()
