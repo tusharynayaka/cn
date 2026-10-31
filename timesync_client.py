@@ -1,85 +1,50 @@
-#!/usr/bin/env python3
-"""UDP time-sync client with a simulated skewed/drifting clock."""
-import argparse, csv, socket, struct, time
+import socket
+import time
+import struct
+import sys
+import csv
 
-FMT = '!BIddd'
-REQ, RESP = 1, 2
-
-class SimClock:
-    def __init__(self, skew, drift_ppm):
-        self.skew = skew
-        self.drift = drift_ppm * 1e-6
-        self.t0 = time.time()
-        self.adj = 0.0
-
-    def now(self):
-        t = time.time()
-        return t + self.skew + self.drift * (t - self.t0) + self.adj
-
-    def error(self):
-        return self.now() - time.time()
-
-    def step(self, theta):
-        self.adj += theta
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--server', required=True)
-    ap.add_argument('--port', type=int, default=5005)
-    ap.add_argument('--name', default='client')
-    ap.add_argument('--skew', type=float, default=0.25)
-    ap.add_argument('--drift', type=float, default=50)
-    ap.add_argument('--count', type=int, default=60)
-    ap.add_argument('--interval', type=float, default=0.5)
-    ap.add_argument('--timeout', type=float, default=1.0)
-    ap.add_argument('--sync-every', type=int, default=4)
-    ap.add_argument('--out', default='client.csv')
-    a = ap.parse_args()
-
-    clock = SimClock(a.skew, a.drift)
+def sync_time(server_ip, port=12345, iterations=20, log_file="sync_results.csv"):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.settimeout(a.timeout)
-    window = []
+    sock.settimeout(2.0)
+    
+    # Set DSCP value for Quality of Service (QoS)
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_TOS, 0xB8)
 
-    with open(a.out, 'w', newline='') as f:
-        w = csv.writer(f)
-        w.writerow(['wall_time', 'name', 'seq', 'status', 'rtt_ms', 'theta_ms',
-                    'offset_err_ms', 'clock_err_ms'])
-        for seq in range(a.count):
-            start = time.time()
-            t1 = clock.now()
-            sock.sendto(struct.pack(FMT, REQ, seq, t1, 0, 0), (a.server, a.port))
-            ok = False
+    print(f"[*] Starting synchronization with Server {server_ip}:{port}...")
+
+    with open(log_file, mode='w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(["Iteration", "T1", "T2", "T3", "T4", "Delay_ms", "Offset_ms"])
+
+        for i in range(iterations):
+            t1 = time.time()  # T1: Client Send Time
+            payload = struct.pack('!d', t1)
+            
             try:
-                while True:
-                    data, _ = sock.recvfrom(1024)
-                    t4 = clock.now()
-                    typ, rseq, _, t2, t3 = struct.unpack(FMT, data)
-                    if typ == RESP and rseq == seq:
-                        ok = True
-                        break
+                sock.sendto(payload, (server_ip, port))
+                data, _ = sock.recvfrom(1024)
+                t4 = time.time()  # T4: Client Receive Time
+
+                if len(data) >= 24:
+                    recv_t1, t2, t3 = struct.unpack('!ddd', data[:24])
+                    
+                    delay = (t4 - recv_t1) - (t3 - t2)
+                    offset = ((t2 - recv_t1) + (t3 - t4)) / 2.0
+
+                    delay_ms = delay * 1000.0
+                    offset_ms = offset * 1000.0
+
+                    print(f"Iter {i+1:02d} | RTT Delay: {delay_ms:7.3f} ms | Clock Offset: {offset_ms:8.3f} ms")
+                    writer.writerow([i+1, recv_t1, t2, t3, t4, delay_ms, offset_ms])
             except socket.timeout:
-                pass
+                print(f"Iter {i+1:02d} | Timeout waiting for server response.")
+            
+            time.sleep(0.5)
 
-            if ok:
-                rtt = (t4 - t1) - (t3 - t2)
-                theta = ((t2 - t1) + (t3 - t4)) / 2.0
-                true_theta = -clock.error()
-                off_err = abs(theta - true_theta)
-                
-                w.writerow([f'{time.time():.3f}', a.name, seq, 'ok', 
-                            f'{rtt*1000:.3f}', f'{theta*1000:.3f}', 
-                            f'{off_err*1000:.3f}', f'{abs(clock.error())*1000:.3f}'])
-                window.append((rtt, theta))
-                if len(window) >= a.sync_every:
-                    best_theta = min(window, key=lambda x: x[0])[1]
-                    clock.step(best_theta)
-                    window.clear()
-            else:
-                w.writerow([f'{time.time():.3f}', a.name, seq, 'lost', '', '', '',
-                            f'{abs(clock.error())*1000:.3f}'])
-            f.flush()
-            time.sleep(max(0, a.interval - (time.time() - start)))
+    sock.close()
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    ip = sys.argv[1] if len(sys.argv) > 1 else "10.0.0.1"
+    out = sys.argv[2] if len(sys.argv) > 2 else "sync_results.csv"
+    sync_time(ip, log_file=out)
