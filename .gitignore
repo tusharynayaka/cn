@@ -1,0 +1,11 @@
+# Python cache files and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment directory
+ryu-env/
+
+# Generated logs
+*.log
+
