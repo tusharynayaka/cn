@@ -1,6 +1,6 @@
 # Network Time Synchronization System
 
-Computer Networks mini project (UE25CS243A), Team 23.
+Computer Networks mini project (UE25CS243A), Team 6.
 
 ## What is this?
 
@@ -131,3 +131,11 @@ The controller asks the switch for traffic counts every second. If any port rece
 - Static ARP is used so address lookups are not lost in the jam and do not confuse the results.
 - If a run is interrupted, clean up with `sudo mn -c` before running again.
 - Result files are overwritten each run.
+
+
+## Contributors
+
+- Tushar Y Nayaka [PES1UG25CS577]
+- VINAY SURESH MANGAVATE [PES1UG25CS592]
+- VISHWAS G S [PES1UG25CS598]
+
