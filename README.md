@@ -102,7 +102,24 @@ Congestion without SDN: only 8 of 20 replies for h2 and 5 of 20 for h3, delay ab
 
 Congestion with SDN: back to 20 of 20 replies, delay about 20 and 30 ms, error about 0.03 ms. The flood is still running, but it no longer matters to the sync traffic.
 
-The graphs are saved as traffic_timeline.png (traffic per host over time), sync_story.png (delay and error over time) and summary_bars.png (the three cases side by side).
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <a href="traffic_timeline.png"><img src="traffic_timeline.png" alt="Traffic timeline" width="100%"></a><br>
+      <sub>Traffic per host over time</sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="sync_story.png"><img src="sync_story.png" alt="Sync story" width="100%"></a><br>
+      <sub>Delay and error over time</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <a href="summary_bars.png"><img src="summary_bars.png" alt="Summary bars" width="80%"></a><br>
+      <sub>The three cases side by side</sub>
+    </td>
+  </tr>
+</table>
 
 ## How the SDN part works
 
