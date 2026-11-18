@@ -132,10 +132,3 @@ The controller asks the switch for traffic counts every second. If any port rece
 - If a run is interrupted, clean up with `sudo mn -c` before running again.
 - Result files are overwritten each run.
 
-
-## Contributors
-
-- Tushar Y Nayaka [PES1UG25CS577]
-- VINAY SURESH MANGAVATE [PES1UG25CS592]
-- VISHWAS G S [PES1UG25CS598]
-
